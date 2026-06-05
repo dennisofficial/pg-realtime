@@ -189,6 +189,33 @@ const myServers = await rls.query({ model: 'servers', user, filter: { status: 'R
 pool. Inside the engine's process, `engine.rls` is the same authorizer pre-wired to the
 engine's pool.
 
+### Enforcing RLS in your own ORM (TypeORM)
+
+When you fetch with your own ORM, apply the scope **at the database** — filtering after
+the fetch wastes the query and corrupts pagination (your total/`skip`/`take` would be
+computed on rows the user can't see). `pg-realtime/typeorm` (optional peer: `typeorm`)
+translates the guard's mingo scope into a `FindOptionsWhere`:
+
+```ts
+import { scopedFindWhere, toFindOptionsWhere } from '@workspace/pg-realtime/typeorm';
+
+// guard scope ∧ your conditions, as a TypeORM where — pagination stays correct
+const { allowed, where } = await scopedFindWhere({
+  rls, model: 'servers', user, where: { status: 'RUNNING' },
+});
+if (!allowed) return { items: [], total: 0 };
+const [items, total] = await serverRepo.findAndCount({ where, skip, take }); // total = scoped count
+
+// or translate a filter yourself
+const rows = await serverRepo.find({ where: toFindOptionsWhere({ customer_id: user.id }) });
+```
+
+It translates only the subset where mingo and SQL agree exactly (equality, `null`→
+`IsNull`, `$eq`/`$ne`/`$in`/`$nin`/`$gt`/`$gte`/`$lt`/`$lte`, top-level `$and`/`$or`) and
+**throws** on anything it can't represent faithfully (`$regex`, JSON-path, `$or` nested
+in `$and`) — so it never silently mistranslates into a wrong (leaky) `where`. Keep RLS
+guard scopes to that subset, which they almost always are.
+
 ## The TOAST caveat (`refetchOnUpdate`)
 
 On an UPDATE, Postgres omits unchanged **TOASTed** (large `text`/`jsonb`/…) columns
@@ -240,10 +267,11 @@ docker compose -f docker-compose.test.yml down -v
 
 Engine-only first cut. **Test-covered:** the engine path — change capture, matching,
 snapshot consistency (incl. a concurrent-write race test), auth guard, TOAST refetch —
-the `RealtimeRls` server-side authorizer (pure checks + DB-backed `query`/`get`), and
-the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
-two-engine "one consumer fans out to every replica" end-to-end), and the SSE transport
-(`formatSse`/`pipeToSse` + a real HTTP SSE end-to-end), via unit + integration tests
+the `RealtimeRls` server-side authorizer (pure checks + DB-backed `query`/`get`), the
+TypeORM RLS translator (`toFindOptionsWhere`/`scopedFindWhere`, incl. a real-DataSource
+`findAndCount` pagination test), the Postgres-native adapters (advisory-lock election,
+NOTIFY round-trip, and a two-engine "one consumer fans out to every replica" end-to-end),
+and the SSE transport (`formatSse`/`pipeToSse` + a real HTTP SSE end-to-end), via unit + integration tests
 against logical-replication Postgres. **Shipped but not yet covered by automated
 tests:** the socket.io transport + `PgRealtimeClient`, the NestJS `sseObservable`
 helper, and the `SseClient` browser client. Not yet wired into a

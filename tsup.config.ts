@@ -21,6 +21,7 @@ export default defineConfig({
     'src/nest/index.ts',
     'src/sse/index.ts',
     'src/sse/client.ts',
+    'src/typeorm/index.ts',
   ],
   format: ['cjs', 'esm'],
   dts: false,
