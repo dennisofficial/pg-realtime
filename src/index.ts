@@ -18,4 +18,10 @@ export { isToastIncomplete } from './engine/toast';
 export type { ResolvedModel } from './engine/resolved-model';
 export { NoopLeaderElector } from './leader/leader';
 export { InProcessBus } from './bus/bus';
+// Postgres-native adapters (no Redis) — need only `pg`, already a core dependency.
+export {
+  PgAdvisoryLockLeaderElector,
+  type PgAdvisoryLockOptions,
+} from './leader/pg-advisory-leader';
+export { PgNotifyBus, type PgNotifyBusOptions } from './bus/pg-notify-bus';
 export { parseLsn, lsnGt, lsnGte, ZERO_LSN } from './lsn';

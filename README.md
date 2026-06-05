@@ -83,20 +83,35 @@ export class AppModule {}
 // inject @Inject(PG_REALTIME_ENGINE) engine: RealtimeEngine and attachSocketIO in your gateway
 ```
 
-### Multi-replica (Redis leader + fan-out)
+### Multi-replica
 
-Exactly one process consumes the slot; every replica matches its own sessions.
+Exactly one process consumes the slot; every replica matches its own sessions. Two
+things must be coordinated across replicas — slot ownership and change fan-out — and
+each has a **Postgres-native** adapter (no Redis, no extra stack) plus a Redis option.
+
+If the WAL consumer runs in a guaranteed single instance, you need *neither*: the
+default `NoopLeaderElector` + `InProcessBus` already cover a one-process deployment.
+
+**Postgres-native (recommended — single stack):**
 
 ```ts
-import { RedisLeaderElector } from '@workspace/pg-realtime/leader/redis';
-import { RedisPubSubBus } from '@workspace/pg-realtime/bus/redis';
+import { PgAdvisoryLockLeaderElector, PgNotifyBus } from '@workspace/pg-realtime';
 
 new RealtimeEngine({
   /* ...connectionString, slotName, publicationName, models... */
-  leader: new RedisLeaderElector({ client: redis }),
-  bus: new RedisPubSubBus({ publisher: redis, createSubscriber: () => redis.duplicate().connect() }),
+  // Leader election via a session advisory lock (one connection; auto-fails-over when
+  // the holder disconnects). Only needed if the consumer itself runs in >1 replica.
+  leader: new PgAdvisoryLockLeaderElector({ connectionString: directUrl, lockName: 'pg_realtime' }),
+  // Fan-out via LISTEN/NOTIFY. Caveat: a single change's row image must fit Postgres's
+  // 8 KB NOTIFY payload cap (fine for small rows; oversized ones are logged + dropped).
+  bus: new PgNotifyBus({ connectionString: directUrl }),
 });
 ```
+
+**Redis (if you already operate it):** `RedisLeaderElector` from
+`@workspace/pg-realtime/leader/redis` and `RedisPubSubBus` from
+`@workspace/pg-realtime/bus/redis` — same interfaces, no NOTIFY size cap, `redis` as an
+optional peer.
 
 ## The TOAST caveat (`refetchOnUpdate`)
 
@@ -149,7 +164,8 @@ docker compose -f docker-compose.test.yml down -v
 
 Engine-only first cut. **Test-covered:** the engine path — change capture, matching,
 snapshot consistency (incl. a concurrent-write race test), auth guard, TOAST refetch —
-via unit tests + integration tests against logical-replication Postgres. **Shipped but
-not yet covered by automated tests:** the socket.io transport, the `PgRealtimeClient`,
-and the Redis leader/bus adapters (the engine is exercised directly, not through the
-wire). Not yet wired into a consuming app. No write path. No predicate indexing.
+plus the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
+two-engine "one consumer fans out to every replica" end-to-end), via unit + integration
+tests against logical-replication Postgres. **Shipped but not yet covered by automated
+tests:** the socket.io transport, the `PgRealtimeClient`, and the Redis leader/bus
+adapters. Not yet wired into a consuming app. No write path. No predicate indexing.

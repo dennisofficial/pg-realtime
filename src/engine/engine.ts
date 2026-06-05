@@ -233,7 +233,17 @@ export class RealtimeEngine {
       slotName: this.config.slotName,
       publicationName: this.config.publicationName,
       pkByTable: this.pkByTable,
-      onChange: (ev) => this.bus.publish(this.channel, ev),
+      // A bus failure (e.g. a NOTIFY payload over the size cap) must not stall the WAL
+      // consumer — log and continue rather than reject the change handler.
+      onChange: async (ev) => {
+        try {
+          await this.bus.publish(this.channel, ev);
+        } catch (err) {
+          this.logger.error(
+            `bus publish failed for ${ev.schema}.${ev.table} pk=${ev.pk}: ${errMsg(err)}`,
+          );
+        }
+      },
       logger: this.logger,
     });
     await this.source.start();
