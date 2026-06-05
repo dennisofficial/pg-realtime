@@ -243,7 +243,19 @@ export class RealtimeEngine {
     if (isLeader && !this.holdingLeadership) {
       this.holdingLeadership = true;
       this.logger.info('pg-realtime: acquired leadership — starting WAL consumer');
-      await this.startSource();
+      try {
+        await this.startSource();
+      } catch (err) {
+        // Don't crash the host app: the slot may be uncreatable yet (e.g. wal_level
+        // isn't logical until the Cloud SQL flag + restart land) or transiently active
+        // during a leadership handoff. Release leadership and retry on the next tick;
+        // the consumer self-heals once the prerequisite is in place.
+        this.logger.error(
+          `pg-realtime: failed to start WAL consumer (will retry): ${errMsg(err)}`,
+        );
+        this.holdingLeadership = false;
+        await this.stopSource();
+      }
     } else if (!isLeader && this.holdingLeadership) {
       this.holdingLeadership = false;
       this.logger.warn('pg-realtime: lost leadership — stopping WAL consumer');
