@@ -56,9 +56,18 @@ export type MingoFilter = Record<string, unknown>;
  * The returned scope is a mingo filter (not SQL): membership is decided by ONE engine
  * (mingo) on both the snapshot and the live path, so snapshot and live can never diverge.
  */
+export type GuardDecision = MingoFilter | boolean | Promise<MingoFilter | boolean>;
+export type GuardAction = 'read' | 'create' | 'update' | 'delete';
+
 export abstract class RealtimeRuleGuard<U = unknown, R extends Row = Row> {
-  abstract canRead(user: U | null): MingoFilter | boolean | Promise<MingoFilter | boolean>;
-  // canCreate/canUpdate/canDelete are reserved for a future write path (unused: read-only engine).
+  /** Which rows the user may read. The realtime engine uses ONLY this one. Required. */
+  abstract canRead(user: U | null): GuardDecision;
+  /** Which candidate rows the user may insert. Optional — falls back to `canRead`. */
+  canCreate?(user: U | null): GuardDecision;
+  /** Which existing rows the user may update. Optional — falls back to `canRead`. */
+  canUpdate?(user: U | null): GuardDecision;
+  /** Which existing rows the user may delete. Optional — falls back to `canRead`. */
+  canDelete?(user: U | null): GuardDecision;
 }
 
 /**

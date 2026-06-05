@@ -1,4 +1,4 @@
-import { MingoFilter, RealtimeRuleGuard, Row } from '../types';
+import { GuardAction, GuardDecision, MingoFilter, RealtimeRuleGuard, Row } from '../types';
 
 /**
  * Combine several mingo filters with `$and`, dropping empty ones.
@@ -22,20 +22,32 @@ export interface GuardResult {
 }
 
 /**
- * Evaluate a model's read guard for a principal.
+ * Evaluate a model's guard for a principal and action.
  *  - guard returns `false`        -> deny (allowed=false)
  *  - guard returns `true`/absent  -> allow all (scope {})
  *  - guard returns a MingoFilter  -> allow, scoped to that filter
  *
- * The scope is a mingo filter (not SQL); it is ANDed with the client filter and
- * evaluated by the one engine on both the snapshot and the live path.
+ * Write actions fall back to `canRead` when their method isn't defined, so a guard
+ * that only declares read access also governs writes (you can mutate what you can
+ * read) unless it tightens them. The scope is a mingo filter (not SQL), ANDed with
+ * the caller's filter and evaluated by the one engine — the same on the realtime
+ * path and the server-side authorizer.
  */
 export async function applyGuard<R extends Row>(
   guard: RealtimeRuleGuard<any, R> | undefined,
   user: unknown,
+  action: GuardAction = 'read',
 ): Promise<GuardResult> {
   if (!guard) return { allowed: true, scope: {} };
-  const result = await guard.canRead((user ?? null) as any);
+  const decide: (user: any) => GuardDecision =
+    action === 'create'
+      ? guard.canCreate ?? guard.canRead
+      : action === 'update'
+        ? guard.canUpdate ?? guard.canRead
+        : action === 'delete'
+          ? guard.canDelete ?? guard.canRead
+          : guard.canRead;
+  const result = await decide.call(guard, (user ?? null) as any);
   if (result === false) return { allowed: false, scope: {} };
   if (result === true) return { allowed: true, scope: {} };
   return { allowed: true, scope: result };

@@ -19,6 +19,7 @@ import { ReplicationSource } from './replication-source';
 import { ResolvedModel, routingKey } from './resolved-model';
 import { mingoAnd, applyGuard } from './rule-guard';
 import { SubscriptionImpl } from './snapshot';
+import { RealtimeRls } from '../rls';
 
 const DEFAULT_CHANNEL = 'pg_realtime:changes';
 const DEFAULT_MAX_ROWS = 10_000;
@@ -35,6 +36,7 @@ export class RealtimeEngine {
   private readonly maxRows: number;
 
   private pool?: Pool;
+  private rlsInstance?: RealtimeRls;
   private source?: ReplicationSource;
   private busUnsub?: () => void;
   private leadershipTimer?: ReturnType<typeof setInterval>;
@@ -66,6 +68,14 @@ export class RealtimeEngine {
 
     await this.resolveModels();
 
+    // Server-side authorizer sharing this engine's models + pool, so the SAME guards
+    // that scope subscriptions can authorize server-side reads/mutations in-process.
+    this.rlsInstance = new RealtimeRls({
+      models: this.config.models,
+      pool: this.pool,
+      maxRows: this.maxRows,
+    });
+
     // Every replica subscribes to the bus and matches its own local sessions.
     this.busUnsub = await this.bus.subscribe(this.channel, (ev) => this.route(ev));
 
@@ -95,6 +105,19 @@ export class RealtimeEngine {
     this.subsByTable.clear();
     await this.pool?.end();
     this.started = false;
+  }
+
+  /**
+   * Server-side authorizer backed by this engine's guards + pool. Use it to check
+   * RLS on the server (e.g. before a mutation) so it stays in sync with subscriptions.
+   * In a process that does NOT run the engine, construct a standalone `RealtimeRls`
+   * from the shared models config instead.
+   */
+  get rls(): RealtimeRls {
+    if (!this.rlsInstance) {
+      throw new Error('engine not started — construct a standalone RealtimeRls instead');
+    }
+    return this.rlsInstance;
   }
 
   async openSubscription(args: OpenSubscriptionArgs): Promise<SubscriptionImpl> {

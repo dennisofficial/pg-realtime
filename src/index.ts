@@ -10,6 +10,7 @@
  */
 export * from './types';
 export { RealtimeEngine } from './engine/engine';
+export { RealtimeRls, type RealtimeRlsOptions } from './rls';
 export { SubscriptionImpl } from './engine/snapshot';
 export { applyMatch, type MatchContext } from './engine/matcher';
 export { applyGuard, mingoAnd, type GuardResult } from './engine/rule-guard';

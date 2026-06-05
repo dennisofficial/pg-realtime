@@ -164,3 +164,37 @@ export async function refetchByPk(
   );
   return rows[0] ?? null;
 }
+
+/** Plain SELECT (no transaction/LSN) with an optional coarse scope — for the authorizer. */
+export async function selectRows(
+  pool: Pool,
+  schema: string,
+  table: string,
+  coarse: CoarseScope,
+  maxRows: number,
+): Promise<Row[]> {
+  const where = coarse && coarse.text ? ` WHERE ${coarse.text}` : '';
+  const values = coarse?.values ?? [];
+  const { rows } = await pool.query<Row>(
+    `SELECT * FROM ${qualified(schema, table)}${where} LIMIT ${Math.floor(maxRows)}`,
+    values,
+  );
+  return rows;
+}
+
+/** Fetch one row by explicit primary-key values. */
+export async function selectByPkValues(
+  pool: Pool,
+  schema: string,
+  table: string,
+  pkColumns: string[],
+  values: unknown[],
+): Promise<Row | null> {
+  if (pkColumns.length === 0) return null;
+  const where = pkColumns.map((c, i) => `${ident(c)} = $${i + 1}`).join(' AND ');
+  const { rows } = await pool.query<Row>(
+    `SELECT * FROM ${qualified(schema, table)} WHERE ${where} LIMIT 1`,
+    values,
+  );
+  return rows[0] ?? null;
+}

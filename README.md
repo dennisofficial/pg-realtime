@@ -19,7 +19,8 @@ Postgres WAL ─► ReplicationSource (leader only) ─► ChangeEvent
   initial result set then `add`/`update`/`remove` deltas as rows enter/leave it.
 - **Row-level security** via a `RealtimeRuleGuard` whose `canRead` returns a mingo
   scope that is ANDed into the subscription. One engine (mingo) decides membership on
-  both the snapshot and the live path, so they can never diverge.
+  both the snapshot and the live path, so they can never diverge — and the *same*
+  guards authorize server-side reads/mutations via `RealtimeRls` (one source of truth).
 - **Pluggable leadership and fan-out** — defaults need no Redis; swap in the Redis
   adapters for multi-replica deployments.
 - **Correct snapshots** — no phantom rows across the snapshot→live window (see below).
@@ -113,6 +114,50 @@ new RealtimeEngine({
 `@workspace/pg-realtime/bus/redis` — same interfaces, no NOTIFY size cap, `redis` as an
 optional peer.
 
+## Authorization — one source of truth
+
+A `RealtimeRuleGuard` returns a **mingo filter** (not a yes/no) describing what a user
+may access. That single definition drives the realtime subscription, a server-side
+list, and a server-side row check — they can't drift apart.
+
+```ts
+class ServersGuard extends RealtimeRuleGuard<AuthUser> {
+  canRead(user: AuthUser | null) {
+    return user ? { customer_id: user.id } : false; // deny when unauthenticated
+  }
+  // canCreate/canUpdate/canDelete are optional — each falls back to canRead.
+  // Each takes only the user and returns a filter; read/update/delete test it against
+  // the existing row, create against the candidate row.
+}
+
+models: [{ table: 'servers', primaryKey: 'id', guard: new ServersGuard() }];
+```
+
+**Server-side checks** use `RealtimeRls`, built from the *same* models config. It's
+standalone — no running engine — so the process that handles a mutation (e.g. your
+panel backend) can authorize against the same guards the consumer uses:
+
+```ts
+import { RealtimeRls } from '@workspace/pg-realtime';
+
+const rls = new RealtimeRls({ models, connectionString });
+
+// power-on a server: fetch + authorize in one call
+const server = await rls.get({ model: 'servers', user, pk: [serverId] });
+if (!server) throw new ForbiddenException(); // not found OR not permitted (same outcome)
+// ...proceed to power it on
+
+// or check a row you already fetched (pure, no DB):
+if (!(await rls.authorize({ model: 'servers', user, row: server }))) throw new ForbiddenException();
+
+// or fetch the authorized set — identical to what a subscription's snapshot returns:
+const myServers = await rls.query({ model: 'servers', user, filter: { status: 'RUNNING' } });
+```
+
+`scope` / `authorize` / `filterRows` are pure (no database); `query` / `get` need a
+pool. Inside the engine's process, `engine.rls` is the same authorizer pre-wired to the
+engine's pool.
+
 ## The TOAST caveat (`refetchOnUpdate`)
 
 On an UPDATE, Postgres omits unchanged **TOASTed** (large `text`/`jsonb`/…) columns
@@ -164,7 +209,8 @@ docker compose -f docker-compose.test.yml down -v
 
 Engine-only first cut. **Test-covered:** the engine path — change capture, matching,
 snapshot consistency (incl. a concurrent-write race test), auth guard, TOAST refetch —
-plus the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
+the `RealtimeRls` server-side authorizer (pure checks + DB-backed `query`/`get`), and
+the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
 two-engine "one consumer fans out to every replica" end-to-end), via unit + integration
 tests against logical-replication Postgres. **Shipped but not yet covered by automated
 tests:** the socket.io transport, the `PgRealtimeClient`, and the Redis leader/bus
