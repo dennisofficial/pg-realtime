@@ -42,6 +42,7 @@ export class RealtimeEngine {
   private busUnsub?: () => void;
   private leadershipTimer?: ReturnType<typeof setInterval>;
   private holdingLeadership = false;
+  private sourceStartFailures = 0;
   private started = false;
   private stopping = false;
 
@@ -245,16 +246,24 @@ export class RealtimeEngine {
       this.logger.info('pg-realtime: acquired leadership — starting WAL consumer');
       try {
         await this.startSource();
+        if (this.sourceStartFailures > 0) {
+          this.logger.info(
+            `pg-realtime: WAL consumer started after ${this.sourceStartFailures} failed attempt(s)`,
+          );
+          this.sourceStartFailures = 0;
+        }
       } catch (err) {
         // Don't crash the host app: the slot may be uncreatable yet (e.g. wal_level
         // isn't logical until the Cloud SQL flag + restart land) or transiently active
         // during a leadership handoff. Release leadership and retry on the next tick;
-        // the consumer self-heals once the prerequisite is in place.
-        this.logger.error(
-          `pg-realtime: failed to start WAL consumer (will retry): ${errMsg(err)}`,
-        );
+        // the consumer self-heals once the prerequisite is in place. Log loudly the
+        // first time, then quietly, so a not-yet-ready prerequisite doesn't spam.
         this.holdingLeadership = false;
         await this.stopSource();
+        this.sourceStartFailures += 1;
+        const msg = `pg-realtime: WAL consumer not started (attempt ${this.sourceStartFailures}, will retry): ${errMsg(err)}`;
+        if (this.sourceStartFailures === 1) this.logger.warn(msg);
+        else this.logger.debug(msg);
       }
     } else if (!isLeader && this.holdingLeadership) {
       this.holdingLeadership = false;
