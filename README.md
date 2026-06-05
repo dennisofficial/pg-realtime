@@ -76,13 +76,46 @@ const handle = client.onQuery('servers', { status: 'RUNNING' }, (rows) => render
 handle.unsubscribe();
 ```
 
+### Over SSE (read-only stream; fits an existing `EventSource`/RTK-Query frontend)
+
+The same `data`/`add`/`update`/`remove` deltas over Server-Sent Events. The
+subscription spec rides in query params; the user comes from your request auth.
+
+```ts
+// server — NestJS @Sse() (deltas become MessageEvents whose name is the delta kind)
+import { sseObservable } from '@workspace/pg-realtime/nest';
+
+@Sse('servers/realtime')
+stream(@GetUser() user: AuthUser, @Query('filter') filter?: string): Observable<MessageEvent> {
+  return sseObservable(() =>
+    engine.openSubscription({ model: 'servers', user, filter: filter ? JSON.parse(filter) : undefined }),
+  );
+}
+
+// server — framework-agnostic (Express / Fastify / raw http / Next.js route handler)
+import { pipeToSse } from '@workspace/pg-realtime/sse';
+res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform' });
+const cleanup = pipeToSse(sub, res);   // attaching starts the snapshot
+res.on('close', cleanup);              // close the subscription on disconnect
+```
+
+```ts
+// browser — built on @microsoft/fetch-event-source: auth headers, openWhenHidden,
+// backoff reconnect, AbortController cancel (the production posture, not raw EventSource)
+import { SseClient } from '@workspace/pg-realtime/sse/client';
+const client = new SseClient({ baseURL: '/servers/realtime', headers: async () => authHeader() });
+const handle = client.onQuery('servers', { status: 'RUNNING' }, (rows) => render(rows));
+handle.unsubscribe();
+```
+
 ### NestJS
 
 ```ts
 import { PgRealtimeModule, PG_REALTIME_ENGINE } from '@workspace/pg-realtime/nest';
 @Module({ imports: [PgRealtimeModule.forRoot(engineConfig)] })
 export class AppModule {}
-// inject @Inject(PG_REALTIME_ENGINE) engine: RealtimeEngine and attachSocketIO in your gateway
+// inject @Inject(PG_REALTIME_ENGINE) engine: RealtimeEngine; serve via a socket.io gateway
+// (attachSocketIO) or an @Sse() endpoint (sseObservable).
 ```
 
 ### Multi-replica
@@ -209,7 +242,9 @@ Engine-only first cut. **Test-covered:** the engine path — change capture, mat
 snapshot consistency (incl. a concurrent-write race test), auth guard, TOAST refetch —
 the `RealtimeRls` server-side authorizer (pure checks + DB-backed `query`/`get`), and
 the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
-two-engine "one consumer fans out to every replica" end-to-end), via unit + integration
-tests against logical-replication Postgres. **Shipped but not yet covered by automated
-tests:** the socket.io transport and the `PgRealtimeClient`. Not yet wired into a
+two-engine "one consumer fans out to every replica" end-to-end), and the SSE transport
+(`formatSse`/`pipeToSse` + a real HTTP SSE end-to-end), via unit + integration tests
+against logical-replication Postgres. **Shipped but not yet covered by automated
+tests:** the socket.io transport + `PgRealtimeClient`, the NestJS `sseObservable`
+helper, and the `SseClient` browser client. Not yet wired into a
 consuming app. No write path. No predicate indexing.

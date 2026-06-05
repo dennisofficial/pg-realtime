@@ -21,6 +21,14 @@
     "./nest": {
       "import": { "types": "./src/nest/index.ts", "default": "./dist/nest/index.mjs" },
       "require": { "types": "./src/nest/index.ts", "default": "./dist/nest/index.js" }
+    },
+    "./sse": {
+      "import": { "types": "./src/sse/index.ts", "default": "./dist/sse/index.mjs" },
+      "require": { "types": "./src/sse/index.ts", "default": "./dist/sse/index.js" }
+    },
+    "./sse/client": {
+      "import": { "types": "./src/sse/client.ts", "default": "./dist/sse/client.mjs" },
+      "require": { "types": "./src/sse/client.ts", "default": "./dist/sse/client.js" }
     }
   },
   "files": [
@@ -52,16 +60,21 @@
     "pg-logical-replication": "^2.0.5"
   },
   "peerDependencies": {
+    "@microsoft/fetch-event-source": ">=2",
     "@nestjs/common": ">=10",
+    "rxjs": ">=7",
     "socket.io": ">=4",
     "socket.io-client": ">=4"
   },
   "peerDependenciesMeta": {
+    "@microsoft/fetch-event-source": { "optional": true },
     "@nestjs/common": { "optional": true },
+    "rxjs": { "optional": true },
     "socket.io": { "optional": true },
     "socket.io-client": { "optional": true }
   },
   "devDependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@nestjs/common": "^10.4.15",
     "@swc/core": "^1.15.32",
     "@swc/jest": "^0.2.39",

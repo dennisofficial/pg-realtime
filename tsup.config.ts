@@ -19,6 +19,8 @@ export default defineConfig({
     'src/client/index.ts',
     'src/socketio/index.ts',
     'src/nest/index.ts',
+    'src/sse/index.ts',
+    'src/sse/client.ts',
   ],
   format: ['cjs', 'esm'],
   dts: false,
