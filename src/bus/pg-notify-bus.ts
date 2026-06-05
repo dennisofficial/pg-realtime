@@ -10,7 +10,8 @@ import { ChangeEvent, Logger, NOOP_LOGGER, PubSubBus } from '../types';
  * Caveat: Postgres caps a NOTIFY payload at 8000 bytes. That is ample for typical
  * realtime rows (ids, statuses, versions), but a row image larger than that cannot
  * ride this bus — publish logs an error and drops that single change. For tables
- * with large columns, keep the matched/rendered columns small, or use the Redis bus.
+ * with large columns, keep the matched/rendered columns small (a refetch-on-receive
+ * bus that lifts the cap is a possible future addition).
  */
 export interface PgNotifyBusOptions {
   /** Direct connection string. The bus manages its own listener + publisher connections. */
@@ -42,7 +43,7 @@ export class PgNotifyBus implements PubSubBus {
     if (Buffer.byteLength(payload, 'utf8') > PAYLOAD_LIMIT) {
       this.logger.error(
         `PgNotifyBus: change for ${event.schema}.${event.table} pk=${event.pk} exceeds the ` +
-          `NOTIFY payload limit and was dropped — keep matched/rendered columns small or use the Redis bus`,
+          `NOTIFY payload limit and was dropped — keep matched/rendered columns small`,
       );
       return;
     }

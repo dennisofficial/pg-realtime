@@ -5,8 +5,8 @@ export type { PubSubBus };
 /**
  * Default bus: in-process EventEmitter-style fan-out. Correct when the leader and
  * the matchers run in the SAME process (single-instance, tests). Multi-replica
- * deployments supply `RedisPubSubBus` (from `pg-realtime/bus/redis`) so the single
- * leader's decoded changes reach every replica's matchers.
+ * deployments supply `PgNotifyBus` so the single leader's decoded changes reach
+ * every replica's matchers.
  */
 export class InProcessBus implements PubSubBus {
   private readonly handlers = new Map<string, Set<(e: ChangeEvent) => void>>();

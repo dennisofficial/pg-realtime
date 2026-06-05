@@ -19,8 +19,6 @@ export default defineConfig({
     'src/client/index.ts',
     'src/socketio/index.ts',
     'src/nest/index.ts',
-    'src/leader/redis-leader.ts',
-    'src/bus/redis-bus.ts',
   ],
   format: ['cjs', 'esm'],
   dts: false,

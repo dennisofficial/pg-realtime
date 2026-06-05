@@ -21,8 +21,9 @@ Postgres WAL ─► ReplicationSource (leader only) ─► ChangeEvent
   scope that is ANDed into the subscription. One engine (mingo) decides membership on
   both the snapshot and the live path, so they can never diverge — and the *same*
   guards authorize server-side reads/mutations via `RealtimeRls` (one source of truth).
-- **Pluggable leadership and fan-out** — defaults need no Redis; swap in the Redis
-  adapters for multi-replica deployments.
+- **Pure Postgres, single stack** — leadership (advisory lock) and fan-out
+  (LISTEN/NOTIFY) use Postgres itself; no Redis, no extra infrastructure. A single
+  process needs neither.
 - **Correct snapshots** — no phantom rows across the snapshot→live window (see below).
 
 ## Postgres prerequisites
@@ -87,13 +88,11 @@ export class AppModule {}
 ### Multi-replica
 
 Exactly one process consumes the slot; every replica matches its own sessions. Two
-things must be coordinated across replicas — slot ownership and change fan-out — and
-each has a **Postgres-native** adapter (no Redis, no extra stack) plus a Redis option.
+things are coordinated across replicas — slot ownership and change fan-out — and both
+use **Postgres itself**, no extra stack.
 
 If the WAL consumer runs in a guaranteed single instance, you need *neither*: the
 default `NoopLeaderElector` + `InProcessBus` already cover a one-process deployment.
-
-**Postgres-native (recommended — single stack):**
 
 ```ts
 import { PgAdvisoryLockLeaderElector, PgNotifyBus } from '@workspace/pg-realtime';
@@ -109,10 +108,9 @@ new RealtimeEngine({
 });
 ```
 
-**Redis (if you already operate it):** `RedisLeaderElector` from
-`@workspace/pg-realtime/leader/redis` and `RedisPubSubBus` from
-`@workspace/pg-realtime/bus/redis` — same interfaces, no NOTIFY size cap, `redis` as an
-optional peer.
+The `LeaderElector` and `PubSubBus` interfaces are public, so a different backend (e.g.
+Redis) can be supplied per project — but the package ships only the Postgres-native
+implementations.
 
 ## Authorization — one source of truth
 
@@ -213,5 +211,5 @@ the `RealtimeRls` server-side authorizer (pure checks + DB-backed `query`/`get`)
 the Postgres-native adapters (advisory-lock election, NOTIFY round-trip, and a
 two-engine "one consumer fans out to every replica" end-to-end), via unit + integration
 tests against logical-replication Postgres. **Shipped but not yet covered by automated
-tests:** the socket.io transport, the `PgRealtimeClient`, and the Redis leader/bus
-adapters. Not yet wired into a consuming app. No write path. No predicate indexing.
+tests:** the socket.io transport and the `PgRealtimeClient`. Not yet wired into a
+consuming app. No write path. No predicate indexing.

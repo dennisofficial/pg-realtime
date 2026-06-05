@@ -1,12 +1,11 @@
 /**
- * pg-realtime — reusable, read-only realtime-over-Postgres engine.
+ * pg-realtime — reusable, read-only realtime-over-Postgres engine. Pure Postgres:
+ * leadership and fan-out use advisory locks + LISTEN/NOTIFY, no external stack.
  *
- * Core (transport- and Redis-agnostic). Optional adapters live behind subpaths:
+ * Core (transport-agnostic). Optional transports live behind subpaths:
  *   pg-realtime/client        — browser/Node client (onQuery / onDocument)
  *   pg-realtime/socketio      — bind a socket.io Server to an engine
  *   pg-realtime/nest          — NestJS module wrapper
- *   pg-realtime/leader/redis  — Redis SET NX EX leader election
- *   pg-realtime/bus/redis     — Redis pub/sub fan-out bus
  */
 export * from './types';
 export { RealtimeEngine } from './engine/engine';
