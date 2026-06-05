@@ -104,10 +104,23 @@ export async function snapshotTable(
 ): Promise<SnapshotResult> {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    // Capture a LOWER-BOUND LSN *before* establishing the snapshot's MVCC view.
+    //
+    // A transaction's commit WAL record is written slightly before its proc-array
+    // entry is cleared, so a row can be invisible to an MVCC snapshot while its
+    // commit LSN is already in the past. If we captured the LSN as the first
+    // statement *inside* the REPEATABLE READ txn, such a row would be missing from
+    // the data (invisible) AND have `commitLsn <= snapshotLsn` — so replay's
+    // `lsn > snapshotLsn` gate would drop it: a silently-missing row.
+    //
+    // Capturing before BEGIN makes snapshotLsn a strict lower bound: any row not in
+    // the snapshot has a commit LSN strictly greater, so it is replayed, never
+    // dropped. The cost is occasionally replaying a row already in the snapshot —
+    // which the matcher dedupes (insert branch checks Set membership).
     const lsnRes = await client.query<{ lsn: string }>('SELECT pg_current_wal_lsn() AS lsn');
     const snapshotLsn = lsnRes.rows[0].lsn;
 
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
     const where = coarse && coarse.text ? ` WHERE ${coarse.text}` : '';
     const values = coarse?.values ?? [];
     const sql = `SELECT * FROM ${qualified(schema, table)}${where} LIMIT ${Math.floor(maxRows)}`;

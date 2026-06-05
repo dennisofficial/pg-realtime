@@ -77,8 +77,10 @@ export async function applyMatch(ctx: MatchContext, ev: ChangeEvent): Promise<vo
     return;
   }
 
-  // insert
-  if (pass) {
+  // insert — dedupe on Set membership. snapshotLsn is a lower bound, so an insert
+  // already reflected in the snapshot can be replayed; skip it rather than emit a
+  // duplicate `add`.
+  if (pass && !ctx.documentIds.has(pk)) {
     ctx.documentIds.add(pk);
     ctx.emit({ kind: 'add', pk, row });
   }

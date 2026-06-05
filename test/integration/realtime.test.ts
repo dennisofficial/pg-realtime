@@ -234,4 +234,33 @@ describe('pg-realtime end-to-end', () => {
       await waitFor(() => c.row(ID.r1)?.label === 'r1b', 'update r1');
     });
   });
+
+  it('no missing rows when subscribing during concurrent inserts (snapshot race)', async () => {
+    // Probes the snapshot↔stream boundary: subscribe while writes are in flight, so
+    // some rows commit just before the snapshot LSN and some just after. With the
+    // lower-bound LSN capture, none are dropped — the cache must equal ground truth.
+    const N = 40;
+    const uuidFor = (i: number) => `00000000-0000-0000-0000-${i.toString().padStart(12, '0')}`;
+
+    await withEngine([scratch], async (engine) => {
+      const writes = (async () => {
+        for (let i = 0; i < N; i++) await insert(uuidFor(i), 't1', 'active', `s${i}`);
+      })();
+
+      const sub = await engine.openSubscription({
+        model: 'scratch',
+        filter: { tenant_id: 't1', status: 'active' },
+      });
+      const c = collector();
+      sub.on(c.apply);
+
+      await writes;
+      await waitFor(() => c.labels().length >= N, `all ${N} rows present`, 15000);
+
+      const ground = await admin.query<{ label: string }>(
+        `SELECT label FROM realtime_scratch WHERE tenant_id='t1' AND status='active'`,
+      );
+      expect(c.labels()).toEqual(ground.rows.map((r) => r.label).sort());
+    });
+  });
 });

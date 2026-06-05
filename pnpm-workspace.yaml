@@ -1,0 +1,12 @@
+# Self-rooting workspace marker.
+#
+# This package is a standalone repo that also lives as a git submodule inside the
+# cubix-infra monorepo. cubix excludes it from ITS workspace (`!packages/pg-realtime`)
+# so the engine-only cut never enters cubix's lockfile / image build. pnpm roots at
+# the nearest pnpm-workspace.yaml when walking up, so this file makes `pnpm install`
+# / `pnpm test` here operate on THIS package alone, independent of the parent
+# workspace. (Empty members list — the root package is the only project.)
+packages: []
+allowBuilds:
+  '@swc/core': true
+  esbuild: true

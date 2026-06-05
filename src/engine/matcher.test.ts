@@ -67,6 +67,15 @@ describe('applyMatch transition table (filter {status: active})', () => {
     expect(h.documentIds.size).toBe(0);
   });
 
+  it('insert of an already-tracked pk -> deduped (no duplicate add)', async () => {
+    // The snapshot LSN is a lower bound, so an insert already in the snapshot can be
+    // replayed; it must not re-emit `add`.
+    const h = harness({ initialIds: ['p1'] });
+    await applyMatch(h.ctx, ev({ op: 'insert', pk: 'p1', row: { status: 'active' } }));
+    expect(h.deltas).toEqual([]);
+    expect(h.documentIds.has('p1')).toBe(true);
+  });
+
   it('update entering the set (pk∉set, pass) -> add', async () => {
     const h = harness();
     await applyMatch(h.ctx, ev({ op: 'update', pk: 'p1', row: { status: 'active' } }));

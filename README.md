@@ -111,11 +111,15 @@ fix the TOAST hole.
 
 ## Snapshot ↔ stream consistency
 
-A subscription buffers live changes from the moment it registers, takes its snapshot
-inside a `REPEATABLE READ` transaction that also captures `pg_current_wal_lsn()`, then
-replays only buffered changes with `lsn > snapshotLsn` (deduped by PK). A row deleted
-in that window is therefore retracted rather than left as a phantom. See
-`src/engine/snapshot.ts` and `src/engine/snapshot.test.ts`.
+A subscription buffers live changes from the moment it registers, captures
+`pg_current_wal_lsn()` as a **lower bound**, takes its snapshot in a `REPEATABLE READ`
+transaction, then replays buffered changes with `lsn > snapshotLsn` (the matcher
+dedupes by PK). Capturing the LSN *before* the snapshot is deliberate: a row's commit
+WAL record precedes its visibility, so a lower bound guarantees any row not in the
+snapshot is replayed rather than dropped — the residual cost is occasionally replaying
+an already-present row, which the insert dedup absorbs. A row deleted in the window is
+retracted rather than left as a phantom. See `src/engine/snapshot.ts`,
+`src/engine/db.ts`, and the unit + integration tests.
 
 ## Scaling — honestly
 

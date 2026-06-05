@@ -84,6 +84,24 @@ describe('snapshot↔stream consistency', () => {
     ]);
   });
 
+  it('dedupes a replayed insert whose row is already in the snapshot (lower-bound LSN)', async () => {
+    // With snapshotLsn captured as a lower bound, an insert already reflected in the
+    // snapshot may be replayed with lsn > snapshotLsn — it must not duplicate `add`.
+    mockedSnapshot.mockResolvedValue({
+      snapshotLsn: '0/100',
+      rows: [{ id: 'r1', status: 'active' }],
+    });
+    const { sub, deltas, attach } = makeSub({ status: 'active' });
+    sub.ingest(ev({ op: 'insert', pk: '["r1"]', lsn: '0/200', row: { id: 'r1', status: 'active' } }));
+
+    attach();
+    await flush();
+
+    expect(deltas).toEqual([
+      { kind: 'data', rows: [{ pk: '["r1"]', row: { id: 'r1', status: 'active' } }] },
+    ]);
+  });
+
   it('applies live events after going LIVE', async () => {
     mockedSnapshot.mockResolvedValue({ snapshotLsn: '0/100', rows: [] });
     const { sub, deltas, attach } = makeSub({ status: 'active' });
