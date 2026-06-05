@@ -22,6 +22,7 @@ export default defineConfig({
     'src/sse/index.ts',
     'src/sse/client.ts',
     'src/typeorm/index.ts',
+    'src/rtk/index.ts',
   ],
   format: ['cjs', 'esm'],
   dts: false,

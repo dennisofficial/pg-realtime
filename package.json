@@ -33,6 +33,10 @@
     "./typeorm": {
       "import": { "types": "./src/typeorm/index.ts", "default": "./dist/typeorm/index.mjs" },
       "require": { "types": "./src/typeorm/index.ts", "default": "./dist/typeorm/index.js" }
+    },
+    "./rtk": {
+      "import": { "types": "./src/rtk/index.ts", "default": "./dist/rtk/index.mjs" },
+      "require": { "types": "./src/rtk/index.ts", "default": "./dist/rtk/index.js" }
     }
   },
   "files": [
