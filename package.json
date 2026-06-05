@@ -1,5 +1,5 @@
 {
-  "name": "pg-realtime",
+  "name": "@workspace/pg-realtime",
   "version": "0.1.0",
   "description": "Reusable, read-only realtime-over-Postgres engine: logical-replication change capture + in-memory mingo query matching (smart fan-out), with pluggable leadership and pub/sub.",
   "main": "./dist/index.js",
@@ -36,7 +36,7 @@
     "src"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm tsup",
     "typecheck": "tsc --noEmit",
     "test": "jest --selectProjects unit",
     "test:integration": "jest --selectProjects integration --runInBand",

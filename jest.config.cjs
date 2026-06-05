@@ -24,7 +24,6 @@ module.exports = {
       ...base,
       displayName: 'integration',
       testMatch: ['<rootDir>/test/integration/**/*.test.ts'],
-      testTimeout: 30000,
     },
   ],
 };
