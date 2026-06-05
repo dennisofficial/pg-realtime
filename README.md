@@ -115,11 +115,13 @@ A subscription buffers live changes from the moment it registers, captures
 `pg_current_wal_lsn()` as a **lower bound**, takes its snapshot in a `REPEATABLE READ`
 transaction, then replays buffered changes with `lsn > snapshotLsn` (the matcher
 dedupes by PK). Capturing the LSN *before* the snapshot is deliberate: a row's commit
-WAL record precedes its visibility, so a lower bound guarantees any row not in the
-snapshot is replayed rather than dropped — the residual cost is occasionally replaying
-an already-present row, which the insert dedup absorbs. A row deleted in the window is
-retracted rather than left as a phantom. See `src/engine/snapshot.ts`,
-`src/engine/db.ts`, and the unit + integration tests.
+WAL record precedes its visibility, so a lower bound makes a dropped row **practically
+impossible** (any row not in the snapshot is replayed) — the residual cost is
+occasionally replaying an already-present row, which the insert dedup absorbs. A row
+deleted in the window is retracted rather than left as a phantom. The only *provably*
+zero-window version aligns the snapshot to the slot via `pg_export_snapshot()` (a noted
+future hardening). See `src/engine/snapshot.ts`, `src/engine/db.ts`, and the unit +
+integration tests (including a concurrent-write snapshot-race test).
 
 ## Scaling — honestly
 
@@ -145,6 +147,9 @@ docker compose -f docker-compose.test.yml down -v
 
 ## Status
 
-Engine-only first cut: change capture, matching, snapshots, auth guard, socket.io +
-client, Redis adapters, unit + integration tests. Not yet wired into a consuming app.
-No write path. No predicate indexing.
+Engine-only first cut. **Test-covered:** the engine path — change capture, matching,
+snapshot consistency (incl. a concurrent-write race test), auth guard, TOAST refetch —
+via unit tests + integration tests against logical-replication Postgres. **Shipped but
+not yet covered by automated tests:** the socket.io transport, the `PgRealtimeClient`,
+and the Redis leader/bus adapters (the engine is exercised directly, not through the
+wire). Not yet wired into a consuming app. No write path. No predicate indexing.

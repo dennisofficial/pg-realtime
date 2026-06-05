@@ -113,10 +113,16 @@ export async function snapshotTable(
     // the data (invisible) AND have `commitLsn <= snapshotLsn` — so replay's
     // `lsn > snapshotLsn` gate would drop it: a silently-missing row.
     //
-    // Capturing before BEGIN makes snapshotLsn a strict lower bound: any row not in
-    // the snapshot has a commit LSN strictly greater, so it is replayed, never
-    // dropped. The cost is occasionally replaying a row already in the snapshot —
-    // which the matcher dedupes (insert branch checks Set membership).
+    // Capturing before BEGIN makes snapshotLsn a lower bound: in practice a row not in
+    // the snapshot has a commit LSN strictly greater, so it is replayed, not dropped.
+    // The cost is occasionally replaying a row already in the snapshot — which the
+    // matcher dedupes (insert branch checks Set membership).
+    //
+    // Residual window (microscopic, not provably zero): a transaction whose commit WAL
+    // record was written before this capture but whose proc-array entry survives the
+    // capture→snapshot round-trip would be both invisible and gated out. Closing it
+    // rigorously means aligning the data snapshot to the slot via pg_export_snapshot()
+    // — a future hardening, unnecessary at realistic write rates.
     const lsnRes = await client.query<{ lsn: string }>('SELECT pg_current_wal_lsn() AS lsn');
     const snapshotLsn = lsnRes.rows[0].lsn;
 
