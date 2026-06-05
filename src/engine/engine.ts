@@ -34,6 +34,7 @@ export class RealtimeEngine {
   private readonly bus: PubSubBus;
   private readonly channel: string;
   private readonly maxRows: number;
+  private readonly consume: boolean;
 
   private pool?: Pool;
   private rlsInstance?: RealtimeRls;
@@ -60,6 +61,7 @@ export class RealtimeEngine {
     this.bus = config.bus ?? new InProcessBus();
     this.channel = config.channel ?? DEFAULT_CHANNEL;
     this.maxRows = config.snapshotMaxRows ?? DEFAULT_MAX_ROWS;
+    this.consume = config.consume ?? true;
   }
 
   async start(): Promise<void> {
@@ -76,16 +78,24 @@ export class RealtimeEngine {
       maxRows: this.maxRows,
     });
 
-    // Every replica subscribes to the bus and matches its own local sessions.
+    // Every instance (consumer or follower) subscribes to the bus and matches its own
+    // local sessions.
     this.busUnsub = await this.bus.subscribe(this.channel, (ev) => this.route(ev));
 
-    // Leadership: only the leader consumes the slot. Tick now, then on an interval
-    // (the interval renews a real elector's lease; Noop is a no-op).
-    await this.leadershipTick();
-    this.leadershipTimer = setInterval(() => void this.leadershipTick(), LEADERSHIP_TICK_MS);
+    if (this.consume) {
+      // Consumer: only the leader reads the slot. Tick now, then on an interval (the
+      // interval renews a real elector's lease; Noop is a no-op).
+      await this.leadershipTick();
+      this.leadershipTimer = setInterval(() => void this.leadershipTick(), LEADERSHIP_TICK_MS);
+    }
+    // Follower (consume:false): no leadership, no WAL source — it only serves
+    // subscriptions, matching changes the consumer publishes onto the bus. Use this in
+    // the HTTP tier (which may scale to zero) while a single always-on process consumes.
 
     this.started = true;
-    this.logger.info(`pg-realtime engine started (models: ${[...this.modelsByName.keys()].join(', ')})`);
+    this.logger.info(
+      `pg-realtime engine started (${this.consume ? 'consumer' : 'follower'}; models: ${[...this.modelsByName.keys()].join(', ')})`,
+    );
   }
 
   async stop(): Promise<void> {

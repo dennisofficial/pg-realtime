@@ -130,6 +130,13 @@ export interface EngineConfig {
   /** Publication name, e.g. 'pg_realtime_pub'. */
   publicationName: string;
   models: ModelConfig[];
+  /**
+   * Whether this instance consumes the WAL (default true). Set false for a **follower**:
+   * it subscribes to the bus and serves subscriptions but never reads the replication
+   * slot — for the HTTP tier (which may scale to zero) while one always-on process is
+   * the consumer. A follower needs a real `bus` (e.g. `PgNotifyBus`) to receive changes.
+   */
+  consume?: boolean;
   /** Default: NoopLeaderElector (single instance). */
   leader?: LeaderElector;
   /** Default: InProcessBus. */

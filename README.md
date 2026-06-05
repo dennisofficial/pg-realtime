@@ -321,6 +321,7 @@ different backend (e.g. Redis) — but the package ships only the Postgres imple
 | `slotName` | `string` | — | logical replication slot |
 | `publicationName` | `string` | — | publication, scoped to the models' tables (created if absent) |
 | `models` | `ModelConfig[]` | — | the tables to watch |
+| `consume` | `boolean` | `true` | `false` = **follower**: serves subscriptions off the bus but never reads the slot (run in the HTTP tier while one always-on process consumes) |
 | `leader` | `LeaderElector` | `NoopLeaderElector` | who consumes the slot |
 | `bus` | `PubSubBus` | `InProcessBus` | cross-replica fan-out |
 | `channel` | `string` | `'pg_realtime:changes'` | bus channel name |
