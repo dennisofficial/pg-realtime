@@ -202,7 +202,12 @@ export class RealtimeRls {
 
   private requireModel(name: string): RlsModel {
     const m = this.models.get(name);
-    if (!m) throw new Error(`pg-realtime RLS: unknown model '${name}'`);
+    if (!m) {
+      const available = [...this.models.keys()];
+      throw new Error(
+        `pg-realtime RLS: unknown model '${name}'. Registered models: [${available.join(', ')}]`,
+      );
+    }
     return m;
   }
 
