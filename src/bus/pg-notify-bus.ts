@@ -144,7 +144,6 @@ function serialize(event: ChangeEvent): string {
   );
 }
 
-/** Quote a LISTEN/NOTIFY channel as a Postgres identifier. */
 function quoteIdent(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
 }

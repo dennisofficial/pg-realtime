@@ -11,7 +11,6 @@ import {
 import { RealtimeEngine } from '../engine/engine';
 import { EngineConfig, ModelConfig } from '../types';
 
-/** Injection token for the shared `RealtimeEngine` instance. */
 export const PG_REALTIME_ENGINE = 'PG_REALTIME_ENGINE';
 
 /**
@@ -28,7 +27,6 @@ export interface RealtimeContribution {
   useFactory: (...deps: any[]) => ModelConfig[];
 }
 
-/** Engine config supplied to `forRoot`/`forRootAsync`; `models` is optional — features add theirs via `forFeature`. */
 export type RootEngineConfig = Omit<EngineConfig, 'models'> & { models?: ModelConfig[] };
 
 /**

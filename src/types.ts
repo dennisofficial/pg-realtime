@@ -6,7 +6,6 @@
  *               ─► PubSubBus ─► every replica ─► per-session matcher ─► RowDelta ─► client
  */
 
-/** A raw row keyed by Postgres column name. Values are already parsed by pgoutput. */
 export type Row = Record<string, unknown>;
 
 export type Op = 'insert' | 'update' | 'delete';
@@ -36,14 +35,12 @@ export interface ChangeEvent {
   lsn: string;
 }
 
-/** A delta pushed toward a client. Mirrors the Mongo reference's `data/add/update/remove`. */
 export type RowDelta =
   | { kind: 'data'; rows: Array<{ pk: string; row: Row }> }
   | { kind: 'add'; pk: string; row: Row }
   | { kind: 'update'; pk: string; row: Row }
   | { kind: 'remove'; pk: string };
 
-/** A Mongo-style filter object, evaluated by mingo. */
 export type MingoFilter = Record<string, unknown>;
 
 /**
@@ -102,7 +99,6 @@ export interface ModelConfig<R extends Row = Row> {
   coarseScope?: (user: unknown) => CoarseScope;
 }
 
-/** Exactly one process may consume the replication slot. */
 export interface LeaderElector {
   /** Resolves true if THIS process now holds (or retains) leadership. */
   acquire(): Promise<boolean>;
@@ -111,7 +107,6 @@ export interface LeaderElector {
   release(): Promise<void>;
 }
 
-/** Fan-out bus. The leader publishes; every replica subscribes and matches locally. */
 export interface PubSubBus {
   publish(channel: string, event: ChangeEvent): Promise<void> | void;
   /** Returns an unsubscribe function. */

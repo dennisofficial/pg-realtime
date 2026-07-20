@@ -1,7 +1,6 @@
 import { Pool } from 'pg';
 import { ChangeEvent, CoarseScope, Row } from '../types';
 
-/** Quote a Postgres identifier (schema/table/column/slot/publication). */
 export function ident(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
 }
@@ -33,7 +32,6 @@ export async function resolvePrimaryKey(
   return rows.map((r) => r.attname);
 }
 
-/** Idempotently ensure the publication exists and covers exactly the given tables. */
 export async function ensurePublication(
   pool: Pool,
   publicationName: string,
@@ -146,7 +144,6 @@ export async function snapshotTable(
   }
 }
 
-/** Fetch the current full row by PK — used only on a TOAST-incomplete UPDATE. */
 export async function refetchByPk(
   pool: Pool,
   schema: string,
@@ -165,7 +162,6 @@ export async function refetchByPk(
   return rows[0] ?? null;
 }
 
-/** Plain SELECT (no transaction/LSN) with an optional coarse scope — for the authorizer. */
 export async function selectRows(
   pool: Pool,
   schema: string,
@@ -182,7 +178,6 @@ export async function selectRows(
   return rows;
 }
 
-/** Fetch one row by explicit primary-key values. */
 export async function selectByPkValues(
   pool: Pool,
   schema: string,

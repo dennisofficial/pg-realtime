@@ -21,13 +21,11 @@
  *   }),
  */
 
-/** A single SSE message — the subset of `@microsoft/fetch-event-source`'s EventSourceMessage used here. */
 export interface SseMessage {
   event?: string;
   data: string;
 }
 
-/** Opens an SSE stream and resolves when it ends. Pass your auth-aware `fetchEventSource`. */
 export type SseOpener = (
   url: string,
   init: {
@@ -38,7 +36,6 @@ export type SseOpener = (
   },
 ) => Promise<void>;
 
-/** The subset of RTK Query's `onCacheEntryAdded` lifecycle API the helpers use. */
 export interface CacheLifecycle<T> {
   cacheDataLoaded: Promise<unknown>;
   cacheEntryRemoved: Promise<void>;
@@ -54,7 +51,6 @@ interface BaseArgs<T> {
   onError?: (err: unknown) => void;
 }
 
-/** Run the cache-entry lifecycle around an SSE consumer (shared by both helpers). */
 async function run<T>(args: BaseArgs<T>, onmessage: (ev: SseMessage) => void): Promise<void> {
   const controller = new AbortController();
   let streamPromise: Promise<void> | undefined;

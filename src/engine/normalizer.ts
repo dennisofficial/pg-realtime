@@ -18,7 +18,6 @@ export function pkColumns(
   return relation.keyColumns ?? [];
 }
 
-/** Stable, order-preserving PK string. Composite keys are JSON arrays. */
 export function buildPk(cols: string[], src: Row | null | undefined): string {
   if (!src) return '';
   return JSON.stringify(cols.map((c) => src[c] ?? null));

@@ -140,7 +140,6 @@ export class ReplicationSource {
   }
 }
 
-/** Deterministic pseudo-jitter in [0,1) — avoids Math.random (not needed, and keeps tests stable). */
 function deterministicJitter(n: number): number {
   const x = Math.sin(n * 12.9898) * 43758.5453;
   return x - Math.floor(x);

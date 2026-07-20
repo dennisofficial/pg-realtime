@@ -38,7 +38,6 @@ interface SseEvent {
   data: string;
 }
 
-/** Minimal fetch-based SSE reader for the test. */
 async function openSse(url: string): Promise<{ events: SseEvent[]; close: () => void }> {
   const controller = new AbortController();
   const events: SseEvent[] = [];

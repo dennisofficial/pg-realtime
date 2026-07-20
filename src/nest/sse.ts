@@ -2,7 +2,6 @@ import { Observable } from 'rxjs';
 import { ssePayload } from '../sse';
 import { Subscription } from '../types';
 
-/** Structural match for NestJS's `MessageEvent` (so we needn't import it just for a type). */
 export interface SseMessageEvent {
   data: string | object;
   id?: string;

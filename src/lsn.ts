@@ -8,7 +8,6 @@
  * load-bearing.
  */
 
-/** Parse a `XXXX/YYYY` LSN into a single comparable bigint. */
 export function parseLsn(lsn: string): bigint {
   const slash = lsn.indexOf('/');
   if (slash === -1) {
@@ -20,15 +19,12 @@ export function parseLsn(lsn: string): bigint {
   return (hi << 32n) | lo;
 }
 
-/** Strictly-greater comparison: is `a` after `b`? */
 export function lsnGt(a: string, b: string): boolean {
   return parseLsn(a) > parseLsn(b);
 }
 
-/** Greater-or-equal comparison. */
 export function lsnGte(a: string, b: string): boolean {
   return parseLsn(a) >= parseLsn(b);
 }
 
-/** The all-zero LSN sentinel (start of WAL / "no position yet"). */
 export const ZERO_LSN = '0/00000000';

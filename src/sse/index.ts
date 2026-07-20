@@ -10,7 +10,6 @@ import { RowDelta, Subscription } from '../types';
  * `http.ServerResponse`, Express, Fastify, or framework route handlers.
  */
 
-/** The JSON payload carried by an SSE event for a given delta. */
 export function ssePayload(delta: RowDelta): unknown {
   switch (delta.kind) {
     case 'data':
@@ -22,12 +21,10 @@ export function ssePayload(delta: RowDelta): unknown {
   }
 }
 
-/** Format a delta as an SSE event block (`event: <kind>\ndata: <json>\n\n`). */
 export function formatSse(delta: RowDelta): string {
   return `event: ${delta.kind}\ndata: ${JSON.stringify(ssePayload(delta))}\n\n`;
 }
 
-/** Anything we can write SSE text to — `http.ServerResponse`, Express `res`, etc. */
 export interface SseSink {
   write(chunk: string): unknown;
 }
