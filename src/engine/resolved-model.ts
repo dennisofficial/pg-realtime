@@ -12,6 +12,8 @@ export interface ResolvedModel {
   mapRow: (raw: Row) => Row;
   guard?: RealtimeRuleGuard<any, Row>;
   coarseScope?: (user: unknown) => CoarseScope;
+  /** See `ModelConfig.replicaIdentityFull`. */
+  replicaIdentityFull: boolean;
 }
 
 export function routingKey(schema: string, table: string): string {

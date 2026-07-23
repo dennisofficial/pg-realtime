@@ -209,6 +209,7 @@ export class RealtimeEngine {
         mapRow: (m.mapRow as (raw: Row) => Row) ?? identity,
         guard: m.guard,
         coarseScope: m.coarseScope,
+        replicaIdentityFull: m.replicaIdentityFull ?? false,
       };
       this.modelsByName.set(name, resolved);
       const list = this.modelsByTable.get(key) ?? [];

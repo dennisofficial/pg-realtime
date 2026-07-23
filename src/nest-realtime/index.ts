@@ -9,3 +9,8 @@ export {
 } from './realtime-resource.registry';
 export { type ResolveResourceDeps, resolveResource } from './resolve-resource';
 export { type RealtimeNestConfig, RealtimeNestModule } from './realtime-nest.module';
+export {
+  createWindowedScopedFind,
+  encodeCursor,
+  type WindowedScopedFindOptions,
+} from './windowed-scoped-find';

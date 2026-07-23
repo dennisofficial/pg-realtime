@@ -17,13 +17,16 @@ const model: ResolvedModel = {
   pkCols: ['id'],
   refetchOnUpdate: false,
   mapRow: (r) => r,
+  replicaIdentityFull: false,
 };
 
-function makeSub(filter: Record<string, unknown>) {
+const fullModel: ResolvedModel = { ...model, replicaIdentityFull: true };
+
+function makeSub(filter: Record<string, unknown>, m: ResolvedModel = model) {
   const deltas: RowDelta[] = [];
   const sub = new SubscriptionImpl({
     id: 'sub-1',
-    model,
+    model: m,
     effQuery: new Query(filter),
     coarse: undefined,
     user: null,
@@ -133,5 +136,86 @@ describe('snapshot↔stream consistency', () => {
     expect(deltas).toEqual([
       { kind: 'data', rows: [{ pk: '["r1"]', row: { id: 'r1', status: 'active' } }] },
     ]);
+  });
+
+  it('REPLICA IDENTITY FULL: documentIds is freed once LIVE, and old/new-image events still classify correctly', async () => {
+    mockedSnapshot.mockResolvedValue({
+      snapshotLsn: '0/100',
+      rows: [{ id: 'r1', status: 'active' }],
+    });
+    const { sub, deltas, attach } = makeSub({ status: 'active' }, fullModel);
+
+    attach();
+    await flush(); // snapshot -> replay -> live
+
+    expect(sub.documentIds.size).toBe(0);
+
+    // add: insert with a passing new image.
+    sub.ingest(
+      ev({ op: 'insert', pk: '["r2"]', lsn: '0/300', row: { id: 'r2', status: 'active' } }),
+    );
+    // update: old image passed, new image still passes -> update.
+    sub.ingest(
+      ev({
+        op: 'update',
+        pk: '["r1"]',
+        lsn: '0/400',
+        row: { id: 'r1', status: 'active', extra: 1 },
+        oldRow: { id: 'r1', status: 'active' },
+      }),
+    );
+    // remove: old image passed, new image no longer passes -> remove.
+    sub.ingest(
+      ev({
+        op: 'update',
+        pk: '["r2"]',
+        lsn: '0/500',
+        row: { id: 'r2', status: 'archived' },
+        oldRow: { id: 'r2', status: 'active' },
+      }),
+    );
+    await flush();
+
+    expect(deltas).toEqual([
+      { kind: 'data', rows: [{ pk: '["r1"]', row: { id: 'r1', status: 'active' } }] },
+      { kind: 'add', pk: '["r2"]', row: { id: 'r2', status: 'active' } },
+      {
+        kind: 'update',
+        pk: '["r1"]',
+        row: { id: 'r1', status: 'active', extra: 1 },
+        changedColumns: ['extra'],
+      },
+      { kind: 'remove', pk: '["r2"]' },
+    ]);
+    // Still empty — the stateless path never reads/writes it once live.
+    expect(sub.documentIds.size).toBe(0);
+  });
+
+  it('non-FULL model: documentIds is retained after going LIVE and legacy Set matching still works', async () => {
+    mockedSnapshot.mockResolvedValue({
+      snapshotLsn: '0/100',
+      rows: [{ id: 'r1', status: 'active' }],
+    });
+    const { sub, deltas, attach } = makeSub({ status: 'active' }, model);
+
+    attach();
+    await flush(); // snapshot -> replay -> live
+
+    // The snapshot-era membership is retained (not cleared) for a non-FULL model.
+    expect(sub.documentIds.has('["r1"]')).toBe(true);
+
+    // No old image (this table isn't REPLICA IDENTITY FULL) -> the legacy
+    // Set-membership branch of applyMatch handles it, even though we're LIVE.
+    sub.ingest(
+      ev({ op: 'update', pk: '["r1"]', lsn: '0/400', row: { id: 'r1', status: 'archived' } }),
+    );
+    await flush();
+
+    expect(deltas).toEqual([
+      { kind: 'data', rows: [{ pk: '["r1"]', row: { id: 'r1', status: 'active' } }] },
+      { kind: 'remove', pk: '["r1"]' },
+    ]);
+    // The legacy branch dropped it from the (still-live) set on the way out.
+    expect(sub.documentIds.has('["r1"]')).toBe(false);
   });
 });

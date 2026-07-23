@@ -153,7 +153,14 @@ export class SubscriptionImpl implements ISubscription {
 
     // Mailbox drained. Flip to LIVE atomically — no await between the check above
     // and this assignment, so no event can slip past the replay gate unseen.
-    if (this.state === 'replaying') this.state = 'live';
+    if (this.state === 'replaying') {
+      this.state = 'live';
+      // A REPLICA IDENTITY FULL model classifies every live event statelessly
+      // (via old/new row images — see matcher.ts), so `documentIds` is never
+      // read or written again. Free the memory now rather than let it sit for
+      // the lifetime of the subscription.
+      if (this.model.replicaIdentityFull) this.documentIds.clear();
+    }
   }
 
   private async doSnapshot(): Promise<void> {

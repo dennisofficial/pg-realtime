@@ -109,10 +109,13 @@ export interface ModelConfig<R extends Row = Row> {
   /** Optional coarse SQL scope for the snapshot fetch (perf only; must be a superset). */
   coarseScope?: (user: unknown) => CoarseScope;
   /**
-   * Documentation/validation hint: set true when this table is under
-   * `REPLICA IDENTITY FULL` in Postgres. Purely informational — the engine keys
-   * `changedColumns` computation off whether `ChangeEvent.oldRow` is actually
-   * present, not off this flag.
+   * Set true when this table is under `REPLICA IDENTITY FULL` in Postgres. The
+   * engine keys per-event classification (`changedColumns`, stateless add/update/
+   * remove) off whether `ChangeEvent.oldRow` is actually present, not off this
+   * flag — so a wrong value here never causes incorrect classification. It IS
+   * consulted for one thing: once a subscription on this model goes LIVE, its
+   * `documentIds` set is cleared (the stateless path never reads/writes it), so
+   * this flag must be accurate for that cleanup to happen.
    */
   replicaIdentityFull?: boolean;
 }

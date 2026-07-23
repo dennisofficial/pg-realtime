@@ -246,6 +246,125 @@ describe('attachMux wiring', () => {
     });
   });
 
+  it('warnSnapshotRows: warns once when the initial data snapshot exceeds the threshold', async () => {
+    const sub = new FakeSubscription();
+    const engine = fakeEngine(new Map([['widgets', sub]]));
+    const io = new FakeIO();
+    const warnings: string[] = [];
+    attachMux(io as any, engine, {
+      authenticate: async () => ({ id: 'u1' }),
+      warnSnapshotRows: 2,
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+      },
+    });
+
+    const socket = new FakeSocket();
+    io.connect(socket);
+    await flush();
+
+    socket.trigger('subscribe', { subId: 'sub-1', model: 'widgets' });
+    await flush();
+
+    sub.push({
+      kind: 'data',
+      rows: [
+        { pk: '1', row: { id: 1 } },
+        { pk: '2', row: { id: 2 } },
+        { pk: '3', row: { id: 3 } },
+      ],
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('widgets');
+    expect(warnings[0]).toContain('3');
+
+    // Data is forwarded unchanged — never truncated.
+    expect(socket.emitted).toContainEqual({
+      event: 'rt',
+      payload: {
+        subId: 'sub-1',
+        op: 'data',
+        rows: [
+          { pk: '1', row: { id: 1 } },
+          { pk: '2', row: { id: 2 } },
+          { pk: '3', row: { id: 3 } },
+        ],
+      },
+    });
+
+    // A follow-up (non-data) delta must not warn again.
+    sub.push({ kind: 'add', pk: '4', row: { id: 4 } });
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('warnSnapshotRows: does not warn when the snapshot is at or below the threshold', async () => {
+    const sub = new FakeSubscription();
+    const engine = fakeEngine(new Map([['widgets', sub]]));
+    const io = new FakeIO();
+    const warnings: string[] = [];
+    attachMux(io as any, engine, {
+      authenticate: async () => ({ id: 'u1' }),
+      warnSnapshotRows: 2,
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+      },
+    });
+
+    const socket = new FakeSocket();
+    io.connect(socket);
+    await flush();
+
+    socket.trigger('subscribe', { subId: 'sub-1', model: 'widgets' });
+    await flush();
+
+    sub.push({
+      kind: 'data',
+      rows: [
+        { pk: '1', row: { id: 1 } },
+        { pk: '2', row: { id: 2 } },
+      ],
+    });
+
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('does not warn when warnSnapshotRows is unset, regardless of snapshot size', async () => {
+    const sub = new FakeSubscription();
+    const engine = fakeEngine(new Map([['widgets', sub]]));
+    const io = new FakeIO();
+    const warnings: string[] = [];
+    attachMux(io as any, engine, {
+      authenticate: async () => ({ id: 'u1' }),
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (msg: string) => warnings.push(msg),
+        error: () => {},
+      },
+    });
+
+    const socket = new FakeSocket();
+    io.connect(socket);
+    await flush();
+
+    socket.trigger('subscribe', { subId: 'sub-1', model: 'widgets' });
+    await flush();
+
+    sub.push({
+      kind: 'data',
+      rows: Array.from({ length: 100 }, (_, i) => ({ pk: String(i), row: { id: i } })),
+    });
+
+    expect(warnings).toHaveLength(0);
+  });
+
   it('disconnects the socket when authenticate rejects', async () => {
     const engine = fakeEngine(new Map());
     const io = new FakeIO();

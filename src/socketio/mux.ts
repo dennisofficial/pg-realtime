@@ -14,6 +14,14 @@ export interface AttachMuxOptions<P = unknown> {
     principal: P,
   ) => ComposedResource | null | Promise<ComposedResource | null>;
   logger?: Logger;
+  /**
+   * Soft-warn threshold on a plain (non-composed) subscription's initial `data`
+   * snapshot row count. An unbounded (Mode A, no `filter`/pagination) subscription
+   * can ship a huge snapshot to a single client; when set, a snapshot whose first
+   * `data` delta exceeds this many rows logs one `logger.warn(...)` (never
+   * truncates or otherwise alters the data). Unset ⇒ no warning.
+   */
+  warnSnapshotRows?: number;
 }
 
 export interface QuerySpec {
@@ -144,7 +152,21 @@ async function handleConnection<P>(
           pk: msg.pk,
         });
         subs.set(subId, sub);
+        let warnedSnapshotSize = false;
         sub.on((delta) => {
+          if (
+            !warnedSnapshotSize &&
+            delta.kind === 'data' &&
+            opts.warnSnapshotRows !== undefined &&
+            delta.rows.length > opts.warnSnapshotRows
+          ) {
+            warnedSnapshotSize = true;
+            logger.warn(
+              `mux: subscription to model '${msg.model}' (subId=${subId}) shipped an initial ` +
+                `snapshot of ${delta.rows.length} rows (> ${opts.warnSnapshotRows}) — consider ` +
+                `adding a filter/limit or pagination to bound it`,
+            );
+          }
           const envelope = projectDelta(subId, delta);
           if (envelope) socket.emit('rt', envelope);
         });
