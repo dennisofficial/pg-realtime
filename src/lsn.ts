@@ -16,7 +16,9 @@ export function parseLsn(lsn: string): bigint {
   }
   const hi = BigInt(`0x${lsn.slice(0, slash)}`);
   const lo = BigInt(`0x${lsn.slice(slash + 1)}`);
-  return (hi << 32n) | lo;
+  // BigInt(32), not the `32n` literal — literals need an ES2020 compile *target*, and this file is
+  // typechecked from source by ES2017-target consumers (e.g. the web app). The bigint type is fine.
+  return (hi << BigInt(32)) | lo;
 }
 
 export function lsnGt(a: string, b: string): boolean {

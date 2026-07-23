@@ -19,6 +19,9 @@
  *     onCacheEntryAdded: (_arg, api) =>
  *       streamList({ url: `${BASE}/nodes/realtime`, open: fetchAuthenticatedEventSource, lifecycle: api }),
  *   }),
+ *
+ * A `RealtimeClient` (see `../client`) can drive these same helpers via the `SocketOpener`
+ * adapter in `./socket-opener` — see that file's doc comment for the single-socket usage.
  */
 
 export interface SseMessage {
@@ -122,3 +125,6 @@ export function streamList<T>(args: BaseArgs<T[]>): Promise<void> {
     }
   });
 }
+
+export { makeSocketListOpener, makeSocketDocumentOpener } from './socket-opener';
+export type { PkSpec } from './socket-opener';

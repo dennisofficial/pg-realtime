@@ -19,6 +19,7 @@ export default defineConfig({
     'src/client/index.ts',
     'src/socketio/index.ts',
     'src/nest/index.ts',
+    'src/nest-realtime/index.ts',
     'src/sse/index.ts',
     'src/sse/client.ts',
     'src/typeorm/index.ts',

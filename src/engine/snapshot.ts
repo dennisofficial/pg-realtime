@@ -41,6 +41,14 @@ export interface SubscriptionDeps {
 export class SubscriptionImpl implements ISubscription {
   readonly id: string;
   readonly model: ResolvedModel;
+  /**
+   * PKs known to be in the result set as of the snapshot. Populated during
+   * `doSnapshot` and kept authoritative through REPLAYING (see `applyMatch`'s
+   * lower-bound-LSN dedupe). Once LIVE, it is only touched by the legacy
+   * fallback branch of `applyMatch` (tables without a usable WAL old image) — a
+   * REPLICA IDENTITY FULL subscription stops reading/writing it entirely, i.e.
+   * it holds no growing per-subscription materialized set in steady state.
+   */
   readonly documentIds = new Set<string>();
 
   private readonly effQuery: Query;
@@ -182,6 +190,10 @@ export class SubscriptionImpl implements ISubscription {
     return {
       effQuery: this.effQuery,
       documentIds: this.documentIds,
+      // Only the legacy Set-based path (snapshotting/replaying, or a table without a
+      // usable old image) still consults `documentIds`; once LIVE with a REPLICA
+      // IDENTITY FULL event, applyMatch classifies statelessly and never touches it.
+      replaying: this.state !== 'live',
       refetchOnUpdate: this.model.refetchOnUpdate,
       mapRow: this.model.mapRow,
       refetch: (ev) =>

@@ -38,7 +38,18 @@ export interface ChangeEvent {
 export type RowDelta =
   | { kind: 'data'; rows: Array<{ pk: string; row: Row }> }
   | { kind: 'add'; pk: string; row: Row }
-  | { kind: 'update'; pk: string; row: Row }
+  | {
+      kind: 'update';
+      pk: string;
+      row: Row;
+      /**
+       * Keys (on the MAPPED row shape) that changed, per `diffColumns(mapRow(oldRow),
+       * mapRow(newRow))`. Only present when the WAL supplied an old tuple (the table
+       * is `REPLICA IDENTITY FULL`). `undefined` means "unknown — treat as all
+       * changed". Additive: existing consumers ignore it and keep reading `row`.
+       */
+      changedColumns?: string[];
+    }
   | { kind: 'remove'; pk: string };
 
 export type MingoFilter = Record<string, unknown>;
@@ -97,6 +108,13 @@ export interface ModelConfig<R extends Row = Row> {
   guard?: RealtimeRuleGuard<any, R>;
   /** Optional coarse SQL scope for the snapshot fetch (perf only; must be a superset). */
   coarseScope?: (user: unknown) => CoarseScope;
+  /**
+   * Documentation/validation hint: set true when this table is under
+   * `REPLICA IDENTITY FULL` in Postgres. Purely informational — the engine keys
+   * `changedColumns` computation off whether `ChangeEvent.oldRow` is actually
+   * present, not off this flag.
+   */
+  replicaIdentityFull?: boolean;
 }
 
 export interface LeaderElector {

@@ -11,6 +11,11 @@ const base = {
   testEnvironment: 'node',
   transform: { '^.+\\.(t|j)s$': ['@swc/jest'] },
   moduleFileExtensions: ['ts', 'js', 'json'],
+  // `superjson` (and its transitive deps `copy-anything`/`is-what`) ship
+  // ESM-only (no CJS build) — let swc transform them too, instead of the
+  // default "skip all of node_modules" behavior. `.*` before the package
+  // name accounts for pnpm's nested `node_modules/.pnpm/<pkg>@.../node_modules/<pkg>` layout.
+  transformIgnorePatterns: ['node_modules/(?!.*(superjson|copy-anything|is-what))'],
 };
 
 module.exports = {

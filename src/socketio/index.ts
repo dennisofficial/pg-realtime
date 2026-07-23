@@ -1,17 +1,11 @@
 import type { Server, Socket } from 'socket.io';
 import { RealtimeEngine } from '../engine/engine';
 
-/**
- * Bind a socket.io Server to an engine. One socket = one subscription, with its
- * spec carried in the connection handshake `auth` (mirrors the Mongo reference):
- *
- *   io(url, { auth: { model: 'servers', filter: { status: 'RUNNING' } } })
- *   io(url, { auth: { model: 'servers', pk: '["<id>"]' } })   // document mode
- *
- * Wire events match the reference: `data` (snapshot), `add`, `update`, `remove`,
- * `exception`. Auth the connection at the socket.io engine layer (or via
- * `extractUser`) — this binding does not authenticate.
- */
+export { Decoder, Encoder, superjsonParser } from './parser-superjson';
+export type { SuperjsonPacket } from './parser-superjson';
+export { attachMux, projectDelta } from './mux';
+export type { AttachMuxOptions, ComposedResource, Envelope, Principal, QuerySpec } from './mux';
+
 export interface AttachSocketIOOptions {
   /** Derive the principal passed to the model guard. Default: `handshake.auth.user`. */
   extractUser?: (socket: Socket) => unknown | Promise<unknown>;
@@ -42,7 +36,7 @@ async function handleConnection(
   const auth = (socket.handshake.auth ?? {}) as HandshakeAuth;
   try {
     if (!auth.model) throw new Error('missing handshake auth: model');
-    const user = opts.extractUser ? await opts.extractUser(socket) : auth.user ?? null;
+    const user = opts.extractUser ? await opts.extractUser(socket) : (auth.user ?? null);
     const sub = await engine.openSubscription({
       model: auth.model,
       user,
